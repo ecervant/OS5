@@ -24,9 +24,11 @@ char *physmem;
 int total_reads = 0;
 int total_writes = 0;
 const char * alg;
+const char * program;
+int pagefaults = 0;
 
 int *replacement_frame;
-
+int * replacement_frame2;
 int full = 0;
 
 int *pageTable; // pageTable[frame] = page;
@@ -34,7 +36,7 @@ int *pageTable; // pageTable[frame] = page;
 void page_fault_handler( struct page_table *pt, int page )
 {
     int frame, bits;
-  
+    pagefaults++;
     //total_reads = 0;
     //total_writes = 0;
 
@@ -54,14 +56,16 @@ void page_fault_handler( struct page_table *pt, int page )
                 break;
             }
         }
-        printf("reads 1: %d\n", total_reads);
-        printf("writes 1: %d\n", total_writes);
+//        printf("reads 1: %d\n", total_reads);
+//        printf("writes 1: %d\n", total_writes);
       
         if (i == nframes - 1) full = 1;
    }
   // if bits == PROT_READ -- > give it write and read permissions
     else if (bits == PROT_READ){
         page_table_set_entry(pt, page, frame, PROT_READ|PROT_WRITE);
+        frameTable[frame] = 1; // added
+        pageTable[frame] = page; // added
        // printf("reads 2: %d\n", total_reads);
        // printf("writes 2: %d\n", total_writes);
     }
@@ -74,10 +78,12 @@ void page_fault_handler( struct page_table *pt, int page )
             new_frame = rand() % nframes;
             kick_out = pageTable[new_frame];
 
-            if (bits == (PROT_READ|PROT_WRITE)) {
+//            if (bits == (PROT_READ|PROT_WRITE)) {
+    // changes:
+     //       if (bits == PROT_WRITE) {
                 disk_write(disk, kick_out, &physmem[new_frame*PAGE_SIZE]);
                 total_writes++;
-            }
+  //          }
         
             disk_read(disk, page, &physmem[new_frame*PAGE_SIZE]);
             page_table_set_entry(pt, page, new_frame, PROT_READ);
@@ -99,10 +105,14 @@ void page_fault_handler( struct page_table *pt, int page )
             }
             replacement_frame[nframes-1] = new_frame;
 
-            if (bits == (PROT_READ|PROT_WRITE)) {
+            //int compare; // should be the new value of the bits
+            page_table_get_entry(pt, kick_out, &frame, &bits);
+            
+            if (bits == (PROT_READ|PROT_WRITE)) { // use compare to check for writing
                 disk_write(disk, kick_out, &physmem[new_frame*PAGE_SIZE]);
                 total_writes++;
             }
+            if (frameTable[new_frame] != -1){
             disk_read(disk, page, &physmem[new_frame*PAGE_SIZE]);
             page_table_set_entry(pt, page, new_frame, PROT_READ);
             page_table_set_entry(pt, kick_out, new_frame, 0);
@@ -112,69 +122,68 @@ void page_fault_handler( struct page_table *pt, int page )
             frameTable[new_frame] = 1;
 
             pageTable[new_frame] = page;
+            }
 
         } 
         else if(!strcmp(alg,"custom")) {
-            if (full != 1) {
-                page_table_get_entry(pt, page, &frame, &bits);
-
+            
+            if (!strcmp(program, "sort")){
                 new_frame = rand() % nframes;
+                new_frame = rand() % nframes;
+
                 kick_out = pageTable[new_frame];
-                if (bits == (PROT_READ|PROT_WRITE)) {
-                    disk_write(disk, kick_out, &physmem[new_frame*PAGE_SIZE]);
-                    total_writes++;
-                }
 
-                disk_read(disk, page, &physmem[new_frame*PAGE_SIZE]);
-                page_table_set_entry(pt, page, new_frame, PROT_READ);
-                page_table_set_entry(pt, kick_out, new_frame, 0);
-          // page_table_print_entry(pt, page);
+                disk_write(disk, kick_out, &physmem[new_frame*PAGE_SIZE]);
+                total_writes++;
         
-                total_reads++;
-                frameTable[new_frame] = 1;
+            disk_read(disk, page, &physmem[new_frame*PAGE_SIZE]);
+            page_table_set_entry(pt, page, new_frame, PROT_READ);
+            page_table_set_entry(pt, kick_out, new_frame, 0);
+            // page_table_print_entry(pt, page);
+        
+            frameTable[new_frame] = 1;
+            pageTable[new_frame] = page;
+            total_reads++;
 
-                pageTable[new_frame] = page;
+
+
+
             }
-            else {
+            else{
+
                 page_table_get_entry(pt, page, &frame, &bits);
-                new_frame = replacement_frame[0];
-                kick_out = pageTable[new_frame];    
+               // new_frame = replacement_frame2[0];
+                new_frame = nframes-1;
+                kick_out = pageTable[new_frame];
+                //printf("frame is %d\n", new_frame);
+                    
                 int s; // keep track
                 for (s = 0; s < nframes-1; s++){
-                    replacement_frame[s] = replacement_frame[s+1];
+                    replacement_frame2[s] = replacement_frame2[s+1];
+    
                 }
-                replacement_frame[nframes-1] = new_frame;
-
-                if (bits == (PROT_READ|PROT_WRITE)) {
+                replacement_frame2[nframes-1] = new_frame;
+    
+                //int compare; // should be the new value of the bits
+                page_table_get_entry(pt, kick_out, &frame, &bits);
+                
+                if (bits == (PROT_READ|PROT_WRITE)) { // use compare to check for writing
                     disk_write(disk, kick_out, &physmem[new_frame*PAGE_SIZE]);
                     total_writes++;
                 }
+                if (frameTable[new_frame] != -1){
                 disk_read(disk, page, &physmem[new_frame*PAGE_SIZE]);
                 page_table_set_entry(pt, page, new_frame, PROT_READ);
                 page_table_set_entry(pt, kick_out, new_frame, 0);
-          // page_table_print_entry(pt, page);
-        
+                // page_table_print_entry(pt, page);
+            
                 total_reads++;
                 frameTable[new_frame] = 1;
-
+    
                 pageTable[new_frame] = page;
-
-            }  
-/*
-        disk_write(disk, kick_out, &physmem[new_frame*PAGE_SIZE]);
-        disk_read(disk, page, &physmem[new_frame*PAGE_SIZE]);
-        page_table_set_entry(pt, page, new_frame, PROT_READ);
-        page_table_set_entry(pt, kick_out, new_frame, 0);
-        page_table_print_entry(pt, page);
-
-        total_writes++;
-        total_reads++;
-
-        pageTable[new_frame] = page;
-*/
-        printf("reads 3: %d\n", total_reads);
-        printf("writes 3: %d\n", total_writes);
-        
+            
+                }
+            }
         }
         else {
             fprintf(stderr,"unknown algorithm: %s\n",alg);
@@ -217,13 +226,14 @@ int main( int argc, char *argv[] )
 
      npages = atoi(argv[1]);
      nframes = atoi(argv[2]);
-     const char *program = argv[4];
+     program = argv[4];
      alg = argv[3];
 
 
      frameTable = malloc(nframes * sizeof(int));
      pageTable = malloc(npages * sizeof(int));
      replacement_frame = malloc(nframes * sizeof(int));
+     replacement_frame2 = malloc(nframes * sizeof(int));
 
      int i;
      for (i=0; i < nframes; i++){
@@ -232,6 +242,9 @@ int main( int argc, char *argv[] )
  
     for (i = 0; i < nframes; i++){
           replacement_frame[i] = i;
+    }
+    for (i = 0; i < nframes; i++){
+          replacement_frame2[i] = nframes-1-i;
     }
 
      disk = disk_open("myvirtualdisk",npages);
@@ -264,7 +277,9 @@ int main( int argc, char *argv[] )
           return 1;
      }
      
-      
+     printf("page faults: %d\n", pagefaults);
+     printf("disk reads: %d\n", total_reads);
+    printf("disk writes: %d\n", total_writes);
      
      page_table_delete(pt);
      disk_close(disk);
@@ -273,6 +288,7 @@ int main( int argc, char *argv[] )
      free(frameTable);
      free(pageTable);
      free(replacement_frame);
+     free(replacement_frame2);
      return 0;
 }
 
