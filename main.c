@@ -15,80 +15,107 @@ how to use the page table and disk interfaces.
 #include <errno.h>
 
 // Global Variables
-const char *alg = argv[3];
+const char *alg;
+int npages;
+int nframes;
+struct disk *disk;
+char *virtmem;
+char *physmem;
+
+
 
 // Functions
 void page_fault_handler( struct page_table *pt, int page )
 {
-  page_table_set_entry(pt,page,page,PROT_READ|PROT_WRITE);
-	
+    //page_table_set_entry(pt,page,page,PROT_READ|PROT_WRITE);
+    // map pages to frames    eventually more pages than frames
+    int i; // going through the page table
+    int frame;
+    int bits;
+    virtmem = page_table_get_virtmem(pt);
+    physmem = page_table_get_physmem(pt);
+
+    for (i = 0; i < npages; i++){
+        page_table_get_entry(pt, i, &frame, &bits);
+        if (bits == 0){
+            page_table_set_entry(pt, i, frame, PROT_READ);
+            disk_read(disk, i, &physmem[frame*bits]);
+        }
+        printf("frame: %d \tbits: %d \n", frame, bits);
+    }
+    printf("page is %d\n",page );
   // write functions that performs a linear search to check if the physical memory is empty
   // write a map thingy for frame, bits, dirty bit, & page
   // if an item has a dirty bit, we have to update the disk before overwriting it
   // 
   
-  //printf("page fault on page #%d\n",page);
-	//exit(1);
+    printf("page fault on page #%d\n",page);
+    exit(1);
 }
 
 // Main
 int main( int argc, char *argv[] )
 {
-	if(argc!=5) {
-		printf("use: virtmem <npages> <nframes> <rand|fifo|lru|custom> <sort|scan|focus>\n");
-		return 1;
-	}
+    if(argc!=5) {
+        printf("use: virtmem <npages> <nframes> <rand|fifo|lru|custom> <sort|scan|focus>\n");
+        return 1;
+    }
 
-	int npages = atoi(argv[1]);
-	int nframes = atoi(argv[2]);
-  const char *program = argv[4];
-  alg = argv[3];
+    npages = atoi(argv[1]);
+    nframes = atoi(argv[2]);
+    const char *program = argv[4];
+    alg = argv[3];
 
-	struct disk *disk = disk_open("myvirtualdisk",npages);
-	if(!disk) {
-		fprintf(stderr,"couldn't create virtual disk: %s\n",strerror(errno));
-		return 1;
-	}
+//    printf("npages: %d\n", npages);
+//    printf("nframes: %d\n", nframes);
 
-	struct page_table *pt = page_table_create( npages, nframes, page_fault_handler );
-	if(!pt) {
-		fprintf(stderr,"couldn't create page table: %s\n",strerror(errno));
-		return 1;
-	}
+//    struct disk *disk = disk_open("myvirtualdisk",npages);
+    disk = disk_open("myvirtualdisk",npages);
 
-	char *virtmem = page_table_get_virtmem(pt);
-	char *physmem = page_table_get_physmem(pt);
-	
+    if(!disk) {
+        fprintf(stderr,"couldn't create virtual disk: %s\n",strerror(errno));
+        return 1;
+    }
+    
+    struct page_table *pt = page_table_create( npages, nframes, page_fault_handler );
+    if(!pt) {
+        fprintf(stderr,"couldn't create page table: %s\n",strerror(errno));
+        return 1;
+    }
+
+    virtmem = page_table_get_virtmem(pt);
+    physmem = page_table_get_physmem(pt);
+    
   /*if(!strcmp(alg,"rand")) {
-		rand_program(virtmem,npages*PAGE_SIZE);
+        rand_program(virtmem,npages*PAGE_SIZE);
 
-	} else if(!strcmp(alg,"fifo")) {
-		fifo_program(virtmem,npages*PAGE_SIZE);
+    } else if(!strcmp(alg,"fifo")) {
+        fifo_program(virtmem,npages*PAGE_SIZE);
 
-	} else if(!strcmp(alg,"custom")) {
-		custom_program(virtmem,npages*PAGE_SIZE);
+    } else if(!strcmp(alg,"custom")) {
+        custom_program(virtmem,npages*PAGE_SIZE);
 
-	} else {
-		fprintf(stderr,"unknown algorithm: %s\n",argv[3]);
-		return 1;
-	}*/
+    } else {
+        fprintf(stderr,"unknown algorithm: %s\n",argv[3]);
+        return 1;
+    }*/
 
-	if(!strcmp(program,"sort")) {
-		sort_program(virtmem,npages*PAGE_SIZE);
+    if(!strcmp(program,"sort")) {
+        sort_program(virtmem,npages*PAGE_SIZE);
 
-	} else if(!strcmp(program,"scan")) {
-		scan_program(virtmem,npages*PAGE_SIZE);
+    } else if(!strcmp(program,"scan")) {
+        scan_program(virtmem,npages*PAGE_SIZE);
 
-	} else if(!strcmp(program,"focus")) {
-		focus_program(virtmem,npages*PAGE_SIZE);
+    } else if(!strcmp(program,"focus")) {
+        focus_program(virtmem,npages*PAGE_SIZE);
 
-	} else {
-		fprintf(stderr,"unknown program: %s\n",argv[4]);
-		return 1;
-	}
+    } else {
+        fprintf(stderr,"unknown program: %s\n",argv[4]);
+        return 1;
+    }
 
-	page_table_delete(pt);
-	disk_close(disk);
+    page_table_delete(pt);
+    disk_close(disk);
 
-	return 0;
+    return 0;
 }
