@@ -21,13 +21,12 @@ int nframes;
 struct disk *disk;
 char *virtmem;
 char *physmem;
-
+int *frameTable;
 
 
 // Functions
 void page_fault_handler( struct page_table *pt, int page )
 {
-    //page_table_set_entry(pt,page,page,PROT_READ|PROT_WRITE);
     // map pages to frames    eventually more pages than frames
     int i; // going through the page table
     int frame;
@@ -37,10 +36,14 @@ void page_fault_handler( struct page_table *pt, int page )
 
     for (i = 0; i < npages; i++){
         page_table_get_entry(pt, i, &frame, &bits);
-        if (bits == 0){
+        printf("frame: %d \tbits: %d \n", frame, bits);
+       if (bits == 0){
+            frameTable[i] = frame;
             page_table_set_entry(pt, i, frame, PROT_READ);
             disk_read(disk, i, &physmem[frame*bits]);
+           // break;
         }
+        page_table_get_entry(pt, i, &frame, &bits);
         printf("frame: %d \tbits: %d \n", frame, bits);
     }
     printf("page is %d\n",page );
@@ -66,6 +69,11 @@ int main( int argc, char *argv[] )
     const char *program = argv[4];
     alg = argv[3];
 
+    frameTable = malloc(nframes *sizeof(int));
+    int i; //what frame is in this page
+    for (i = 0; i < nframes; i++){
+        frameTable[i] = -1;
+    }
 //    printf("npages: %d\n", npages);
 //    printf("nframes: %d\n", nframes);
 
@@ -116,6 +124,7 @@ int main( int argc, char *argv[] )
 
     page_table_delete(pt);
     disk_close(disk);
+    free(frameTable);
 
     return 0;
 }
