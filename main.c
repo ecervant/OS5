@@ -77,12 +77,16 @@ void page_fault_handler( struct page_table *pt, int page )
         if(!strcmp(alg,"rand")) {
             new_frame = rand() % nframes;
             kick_out = pageTable[new_frame];
+            page_table_get_entry(pt, kick_out, &frame, &bits);
+                
+            if (bits == (PROT_READ|PROT_WRITE)) { // use compare to check for writing
+                disk_write(disk, kick_out, &physmem[new_frame*PAGE_SIZE]);
+                total_writes++;
+            }
 
 //            if (bits == (PROT_READ|PROT_WRITE)) {
     // changes:
      //       if (bits == PROT_WRITE) {
-                disk_write(disk, kick_out, &physmem[new_frame*PAGE_SIZE]);
-                total_writes++;
   //          }
         
             disk_read(disk, page, &physmem[new_frame*PAGE_SIZE]);
@@ -132,9 +136,12 @@ void page_fault_handler( struct page_table *pt, int page )
                 new_frame = rand() % nframes;
 
                 kick_out = pageTable[new_frame];
-
-                disk_write(disk, kick_out, &physmem[new_frame*PAGE_SIZE]);
-                total_writes++;
+                page_table_get_entry(pt, kick_out, &frame, &bits);
+                
+                if (bits == (PROT_READ|PROT_WRITE)) { // use compare to check for writing
+                    disk_write(disk, kick_out, &physmem[new_frame*PAGE_SIZE]);
+                    total_writes++;
+                }
         
             disk_read(disk, page, &physmem[new_frame*PAGE_SIZE]);
             page_table_set_entry(pt, page, new_frame, PROT_READ);
